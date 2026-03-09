@@ -1,47 +1,51 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project
 
-## Project Overview
-
-augai is a session memory system built on Qdrant (vector DB) with local embeddings via fastembed. It stores conversation messages as vectors and retrieves them by semantic similarity, with support for text chunking, time-weighted scoring, and multiple embedding models.
+augai — session memory system on Qdrant (vector DB) with local embeddings (fastembed). Stores conversation messages as vectors, retrieves by semantic similarity. Supports text chunking, time-weighted scoring, multiple embedding models.
 
 ## Commands
 
 ```bash
-npm start           # Run demo script (src/index.ts) — requires Qdrant on localhost:6333
-npm run dev         # Watch mode for demo script
-npm run cli         # Interactive conversation CLI with /search, /history, /clear, /quit
-npm run compare     # Compare embedding models in-memory (no Qdrant needed)
-npm run build       # TypeScript compilation to dist/
-npx tsc --noEmit    # Type-check without emitting
+npm start           # Demo script (src/index.ts) — needs Qdrant on localhost:6333
+npm run dev         # Watch mode for demo
+npm run cli         # Interactive CLI (/search, /history, /clear, /quit) — needs Qdrant
+npm run compare     # Compare embedding models in-memory (no Qdrant)
+npm run build       # tsc → dist/
+npx tsc --noEmit    # Type-check only
 ```
 
-## Prerequisites
+## Stack
 
-Qdrant must be running locally on port 6333 for `start`, `dev`, and `cli` commands. The `compare` script runs purely in-memory.
+- **Runtime:** Node.js with `tsx` (no build step needed for dev)
+- **ESM + TypeScript:** `"type": "module"`, `"module": "nodenext"`, strict mode. All imports use `.js` extensions
+- **Deps:** `@qdrant/js-client-rest`, `fastembed`
+- **Dev deps:** `typescript`, `tsx`, `@types/node`
+- **No linter, no formatter, no tests configured**
 
 ## Architecture
 
-**ESM TypeScript project** — uses `"type": "module"` in package.json, `"module": "nodenext"` in tsconfig. All imports use `.js` extensions (required for ESM resolution with TypeScript).
+`Embedder` → `SessionMemory` → consumers (demo, CLI)
 
-### Core Pipeline
+| File | Role |
+|------|------|
+| `src/embeddings.ts` | `Embedder` class — fastembed wrapper, lazy init, `embedQuery()` / `embedBatch()`. Models: 384/768/1024-dim (different dims = separate collections) |
+| `src/memory.ts` | `SessionMemory` — `add()`, `addBatch()`, `search()`, `clearSession()`. Constructor injection (QdrantClient + Embedder). Auto-creates collections. Auto-chunks long text via chunker, links chunks by `sourceId`. Time-weighted search: over-fetch 3×, blend cosine + recency decay, re-rank |
+| `src/chunker.ts` | `chunkText()` — pure function, sentence-boundary splitting with overlap |
+| `src/cli.ts` | Readline CLI, unique session per run |
+| `src/compare-models.ts` | In-memory model comparison via cosine similarity |
+| `src/index.ts` | Demo script — batch insert + search examples |
 
-`Embedder` (fastembed wrapper) → `SessionMemory` (Qdrant CRUD + search) → consumers (demo, CLI)
+## Code Rules
 
-- **`src/embeddings.ts`** — `Embedder` class wraps fastembed's async init and AsyncGenerator API. Configurable model via `EmbeddingModel` enum. Each model has a fixed vector dimension (384, 768, or 1024) — different dimensions require separate Qdrant collections.
+- **Performance is king** — optimize hot paths, avoid unnecessary allocations, prefer performant patterns. Readability serves performance, never the reverse
+- **No comments unless essential** — if the code is self-explanatory, no comment. Only comment non-obvious logic, edge cases, or "why" (never "what")
+- **No over-engineering** — no abstractions for single-use code, no speculative features, no unnecessary error handling for impossible states
+- **Minimal diffs** — change only what's needed. Don't refactor, reformat, or annotate untouched code
 
-- **`src/memory.ts`** — `SessionMemory` class provides `add()`, `addBatch()`, `search()`, `clearSession()`. Takes `QdrantClient` and `Embedder` via constructor injection. Auto-creates Qdrant collections on first use. Long text is auto-chunked (via `chunker.ts`) with chunks linked by `sourceId`. Search uses time-weighted scoring by default: over-fetches 3× from Qdrant, blends cosine similarity with exponential recency decay, then re-ranks.
+## Conventions
 
-- **`src/chunker.ts`** — Pure function `chunkText()` that splits text on sentence boundaries with configurable overlap. No side effects.
-
-- **`src/cli.ts`** — Interactive readline-based CLI. Each run gets a unique session ID.
-
-- **`src/compare-models.ts`** — Standalone script comparing embedding models by computing cosine similarity in-memory without Qdrant.
-
-## Key Patterns
-
-- fastembed returns `Float32Array`; convert with `Array.from()` for Qdrant compatibility
-- Qdrant point IDs use `crypto.randomUUID()`
-- `MemoryPayload` is the metadata shape stored alongside each vector in Qdrant
-- The `satisfies` keyword is used for payload type checking at upsert sites
+- `Float32Array` → `Array.from()` for Qdrant compatibility
+- Point IDs: `crypto.randomUUID()`
+- Payload type safety: `satisfies MemoryPayload` at upsert sites
+- `MemoryPayload`: `{ text, sessionId, role, timestamp, sourceId?, chunkIndex?, totalChunks? }`
