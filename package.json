@@ -1,0 +1,26 @@
+{
+  "name": "augai",
+  "version": "1.0.0",
+  "description": "Vector DB learning project with Qdrant",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "cli": "tsx src/cli.ts",
+    "compare": "tsx src/compare-models.ts",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^25.3.5",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@qdrant/js-client-rest": "^1.17.0",
+    "fastembed": "^2.1.0"
+  }
+}
