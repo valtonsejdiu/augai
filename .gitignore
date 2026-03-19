@@ -1,6 +1,7 @@
 node_modules/
 dist/
 local_cache/
+package-lock.json
 *.tsbuildinfo
 
 # Logs
