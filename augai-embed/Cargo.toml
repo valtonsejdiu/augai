@@ -1,0 +1,44 @@
+[package]
+name = "augai-embed"
+version = "0.1.0"
+edition = "2024"               # Rust edition — like "target" in tsconfig
+
+[dependencies]
+# fastembed-rs: local ML inference via ONNX Runtime (the Rust equivalent of the JS fastembed package).
+# Supports 57+ dense models, sparse models (SPLADE), and cross-encoder rerankers.
+fastembed = "5.12"
+
+# axum: web framework built on top of tokio (think Express.js but for Rust).
+# Handles routing, JSON parsing, middleware — same role as Express/Fastify.
+axum = "0.8"
+
+# tokio: async runtime for Rust (like Node.js's event loop, but explicit).
+# "full" feature enables all sub-features: networking, timers, file I/O, etc.
+tokio = { version = "1", features = ["full"] }
+
+# serde: serialization/deserialization framework (like JSON.parse/JSON.stringify).
+# "derive" feature lets us use #[derive(Serialize, Deserialize)] on structs —
+# the compiler auto-generates the JSON conversion code at compile time.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# tower-http: HTTP middleware. We only need CORS support for browser clients.
+tower-http = { version = "0.6", features = ["cors"] }
+
+# tracing: structured logging (like console.log but with levels, spans, filters).
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+# Optional hardware acceleration for Apple Silicon.
+# Build with: cargo build --release --features metal
+# These pass feature flags down to fastembed-rs → ONNX Runtime.
+default = []
+metal = ["fastembed/metal"]           # Apple GPU (Metal Performance Shaders)
+accelerate = ["fastembed/accelerate"] # Apple CPU BLAS (vecLib/Accelerate)
+
+[profile.release]
+# Release build optimizations — slower compile, much faster binary.
+lto = true           # Link-Time Optimization: optimizes across crate boundaries (like whole-program optimization)
+codegen-units = 1    # Compile as single unit for maximum optimization (default is 16 for parallelism)
+strip = true         # Strip debug symbols from binary — smaller file size (~50MB vs ~200MB)

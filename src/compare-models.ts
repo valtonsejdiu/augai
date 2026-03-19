@@ -1,11 +1,5 @@
-import { Embedder, EmbeddingModel } from "./embeddings.js";
+import { FastEmbedEmbedder, EmbeddingModel } from "./embeddings.js";
 
-// Compare how different embedding models rank the same texts.
-// Operates purely in memory — no Qdrant needed.
-
-// Cosine similarity between two vectors (manual dot product).
-// Both vectors should already be normalized (fastembed does this),
-// so dot product = cosine similarity.
 function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0;
   let normA = 0;
@@ -18,7 +12,6 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-// Test texts — a mix of topics to see how models differentiate them
 const texts = [
   "PostgreSQL supports JSONB columns for storing semi-structured data efficiently.",
   "React hooks like useState and useEffect simplify component state management.",
@@ -30,16 +23,13 @@ const texts = [
   "Neural networks consist of layers of interconnected nodes that transform input data.",
 ];
 
-// Queries — some direct, some requiring semantic understanding
 const queries = [
-  "database storage format",          // Should match PostgreSQL/JSONB
-  "frontend state",                   // Should match React hooks
-  "container orchestration",          // Should match Docker and/or Kubernetes
-  "deep learning architecture",       // Should match neural networks and/or ML
+  "database storage format",
+  "frontend state",
+  "container orchestration",
+  "deep learning architecture",
 ];
 
-// Models to compare. Start with two that share the same dimension for simplicity.
-// Add BGEBaseENV15 (768-dim) if you want to see a larger model's behavior.
 const modelsToCompare: { name: string; model: EmbeddingModel }[] = [
   { name: "AllMiniLML6V2 (384d)", model: EmbeddingModel.AllMiniLML6V2 },
   { name: "BGESmallENV15 (384d)", model: EmbeddingModel.BGESmallENV15 },
@@ -51,14 +41,12 @@ async function main() {
     console.log(`Model: ${name}`);
     console.log("=".repeat(60));
 
-    const embedder = new Embedder(model);
+    const embedder = new FastEmbedEmbedder(model);
 
-    // Embed all texts and queries
     console.log("Embedding texts...");
     const textVectors = await embedder.embedBatch(texts);
     const queryVectors = await embedder.embedBatch(queries);
 
-    // For each query, rank all texts by similarity
     for (let q = 0; q < queries.length; q++) {
       const query = queries[q]!;
       const queryVec = queryVectors[q]!;
@@ -68,7 +56,6 @@ async function main() {
         score: cosineSimilarity(queryVec, textVectors[i]!),
       }));
 
-      // Sort by score descending
       scores.sort((a, b) => b.score - a.score);
 
       console.log(`\n  Query: "${query}"`);

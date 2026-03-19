@@ -4,23 +4,42 @@
   "description": "Vector DB learning project with Qdrant",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
-    "cli": "tsx src/cli.ts",
-    "compare": "tsx src/compare-models.ts",
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "cli": "bun src/cli.ts",
+    "compare": "bun src/compare-models.ts",
+    "cli:openai": "AUGAI_EMBEDDER=openai bun src/cli.ts",
+    "cli:cohere": "AUGAI_EMBEDDER=cohere bun src/cli.ts",
+    "cli:voyage": "AUGAI_EMBEDDER=voyage bun src/cli.ts",
+    "cli:ollama": "AUGAI_EMBEDDER=ollama bun src/cli.ts",
+    "cli:ollama:mxbai": "AUGAI_EMBEDDER=ollama OLLAMA_MODEL=mxbai-embed-large bun src/cli.ts",
+    "cli:ollama:minilm": "AUGAI_EMBEDDER=ollama OLLAMA_MODEL=all-minilm bun src/cli.ts",
+    "cli:ollama:voyage": "AUGAI_EMBEDDER=ollama OLLAMA_MODEL=nub235/voyage-4-nano bun src/cli.ts",
+    "cli:rerank": "AUGAI_RERANKER=infinity bun src/cli.ts",
+    "infra:up": "docker compose up -d qdrant ollama infinity && docker compose run --rm ollama-pull",
+    "infra:down": "docker compose down",
+    "infra:pull": "docker compose run --rm ollama-pull",
+    "sidecar:build": "cd augai-embed && cargo build --release",
+    "sidecar:start": "cd augai-embed && cargo run --release",
+    "compare:hybrid": "bun src/compare-hybrid.ts",
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^25.3.5",
-    "tsx": "^4.21.0",
+    "@types/bun": "latest",
     "typescript": "^5.9.3"
   },
   "dependencies": {
     "@qdrant/js-client-rest": "^1.17.0",
+    "cohere-ai": "^7.0.0",
+    "openai": "^4.0.0",
+    "voyageai": "^0.2.1"
+  },
+  "optionalDependencies": {
     "fastembed": "^2.1.0"
   }
 }

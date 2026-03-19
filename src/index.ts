@@ -1,17 +1,40 @@
 import { QdrantClient } from "@qdrant/js-client-rest";
-import { Embedder } from "./embeddings.js";
+import type { SparseEmbedder } from "./types.js";
+import { createEmbedder } from "./provider.js";
+import { createReranker } from "./reranker-provider.js";
 import { SessionMemory } from "./memory.js";
 
+async function checkSidecarHealth(): Promise<boolean> {
+  const url = (process.env.AUGAI_EMBED_URL ?? "http://localhost:8081").replace(/\/$/, "");
+  try {
+    const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(1000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
-  // --- SETUP ---
-  const client = new QdrantClient({ host: "localhost", port: 6333 });
-  const embedder = new Embedder();
-  const memory = new SessionMemory(client, embedder);
+  const client = new QdrantClient({ url: process.env.QDRANT_URL ?? "http://localhost:6333" });
+
+  const sidecarUp = await checkSidecarHealth();
+  let sparse: SparseEmbedder | null = null;
+  if (sidecarUp) {
+    const { SidecarSparseEmbedder } = await import("./sidecar-client.js");
+    sparse = new SidecarSparseEmbedder();
+    console.log("[hybrid] Rust sidecar up — hybrid dense+sparse search enabled");
+  }
+
+  const embedder = await createEmbedder();
+  console.log(`[embedder] ${process.env.AUGAI_EMBEDDER || "ollama"} (${embedder.dimension}d)`);
+
+  const reranker = await createReranker();
+  if (reranker) console.log(`[reranker] ${process.env.AUGAI_RERANKER}`);
+
+  const memory = new SessionMemory(client, embedder, undefined, sparse, reranker);
 
   const SESSION_ID = "demo-session-001";
 
-  // --- SIMULATE A CONVERSATION ---
-  // Imagine a user having a technical discussion. We store each message.
   console.log("Storing conversation in memory...\n");
 
   await memory.addBatch(
@@ -32,33 +55,26 @@ async function main() {
 
   console.log("Stored 10 messages. Now searching by meaning...\n");
 
-  // --- SEARCH: the power of semantic memory ---
-  // Notice: the search queries DON'T match the stored text word-for-word.
-  // The embedding model understands MEANING, not just keywords.
-
   const queries = [
-    "database connection setup",    // Should find the PostgreSQL discussion
-    "CSS styling framework",        // Should find the Tailwind conversation
-    "container resource limits",    // Should find the Docker memory discussion
-    "schema versioning",            // Should find the migrations discussion
+    "database connection setup",
+    "CSS styling framework",
+    "container resource limits",
+    "schema versioning",
   ];
 
   for (const query of queries) {
-    const results = await memory.search(query, {
-      limit: 2,
-      sessionId: SESSION_ID,
-    });
+    const results = await memory.search(query, { limit: 2, sessionId: SESSION_ID });
 
     console.log(`Query: "${query}"`);
     for (const r of results) {
-      console.log(`  [score=${r.score.toFixed(4)} cos=${r.cosineScore.toFixed(4)} rec=${r.recencyScore.toFixed(4)}] (${r.role}) ${r.text.substring(0, 80)}...`);
+      const rrk = r.rerankScore !== undefined ? ` rrk=${r.rerankScore.toFixed(4)}` : "";
+      console.log(
+        `  [score=${r.score.toFixed(4)} cos=${r.cosineScore.toFixed(4)}${rrk} rec=${r.recencyScore.toFixed(4)}] (${r.role}) ${r.text.substring(0, 80)}...`
+      );
     }
     console.log();
   }
 
-  // --- CLEANUP ---
-  // In production you'd keep the data. Here we clean up so the demo
-  // is re-runnable without duplicates.
   await memory.clearSession(SESSION_ID);
   console.log("Session cleared.");
 }
