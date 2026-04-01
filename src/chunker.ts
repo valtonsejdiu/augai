@@ -1,65 +1,57 @@
 import type { Chunk, ChunkOptions } from "./types.js";
+import { splitText } from "./chunk-text.js";
 
-export function chunkText(
+function buildChunks(rawChunks: string[]): Chunk[] {
+  const chunks: Chunk[] = [];
+  let prev: string | undefined;
+  for (const raw of rawChunks) {
+    const text = raw.trim();
+    if (text === prev) continue;
+    prev = text;
+    if (text.length === 0) continue;
+    chunks.push({ text, index: chunks.length, totalChunks: 0 });
+  }
+  for (const c of chunks) c.totalChunks = chunks.length;
+  return chunks;
+}
+
+export function chunkText(text: string, options: ChunkOptions = {}): Chunk[] {
+  const { maxChunkSize = 1500, overlapSize = 200, format = "text" } = options;
+
+  if (format !== "text") {
+    throw new Error(
+      `Format "${format}" requires chunkTextAsync(). Use chunkTextAsync() for structured formats.`
+    );
+  }
+
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return [];
+  if (trimmed.length <= maxChunkSize) {
+    return [{ text: trimmed, index: 0, totalChunks: 1 }];
+  }
+
+  const rawChunks = splitText(trimmed, maxChunkSize, overlapSize);
+  return buildChunks(rawChunks);
+}
+
+export async function chunkTextAsync(
   text: string,
   options: ChunkOptions = {}
-): Chunk[] {
-  const { maxChunkSize = 1500, overlapSize = 200 } = options;
+): Promise<Chunk[]> {
+  const { maxChunkSize = 1500, overlapSize = 200, format = "text" } = options;
 
-  if (text.length <= maxChunkSize) {
-    return [{ text, index: 0, totalChunks: 1 }];
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return [];
+
+  if (format !== "text") {
+    const { chunkStructured } = await import("./chunk-structured.js");
+    const rawChunks = await chunkStructured(trimmed, options);
+    return buildChunks(rawChunks);
   }
 
-  const matched = text.match(/[^.!?]*[.!?]+[\s]*/g);
-  const sentences: string[] = matched ? [...matched] : [];
-
-  if (sentences.length === 0) {
-    sentences.push(text);
+  if (trimmed.length <= maxChunkSize) {
+    return [{ text: trimmed, index: 0, totalChunks: 1 }];
   }
 
-  const matchedLen = sentences.reduce((sum, s) => sum + s.length, 0);
-  if (matchedLen < text.length) {
-    sentences.push(text.slice(matchedLen));
-  }
-
-  const rawChunks: string[] = [];
-  let i = 0;
-
-  while (i < sentences.length) {
-    let chunk = "";
-    const startIdx = i;
-
-    while (i < sentences.length && (chunk + sentences[i]!).length <= maxChunkSize) {
-      chunk += sentences[i]!;
-      i++;
-    }
-
-    if (i === startIdx) {
-      const longSentence = sentences[i]!;
-      for (let pos = 0; pos < longSentence.length; pos += maxChunkSize) {
-        rawChunks.push(longSentence.slice(pos, pos + maxChunkSize));
-      }
-      i++;
-      continue;
-    }
-
-    rawChunks.push(chunk);
-
-    if (i < sentences.length) {
-      let overlapLen = 0;
-      let rewind = 0;
-      for (let j = i - 1; j >= startIdx; j--) {
-        overlapLen += sentences[j]!.length;
-        rewind++;
-        if (overlapLen >= overlapSize) break;
-      }
-      i -= rewind;
-    }
-  }
-
-  // overlap can produce identical consecutive chunks
-  const deduped = rawChunks.filter((c, idx) => idx === 0 || c !== rawChunks[idx - 1]);
-
-  const totalChunks = deduped.length;
-  return deduped.map((text, index) => ({ text: text.trim(), index, totalChunks }));
+  return buildChunks(splitText(trimmed, maxChunkSize, overlapSize));
 }

@@ -40,6 +40,9 @@
     "voyageai": "^0.2.1"
   },
   "optionalDependencies": {
-    "fastembed": "^2.1.0"
+    "@langchain/core": "^1.1.38",
+    "@langchain/textsplitters": "^1.0.1",
+    "fastembed": "^2.1.0",
+    "unpdf": "^0.12.0"
   }
 }

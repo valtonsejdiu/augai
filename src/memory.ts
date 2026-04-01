@@ -1,6 +1,6 @@
 import { QdrantClient } from "@qdrant/js-client-rest";
 import type { ChunkOptions, DenseEmbedder, Reranker, SparseEmbedder } from "./types.js";
-import { chunkText } from "./chunker.js";
+import { chunkTextAsync } from "./chunker.js";
 
 export interface MemoryPayload {
   text: string;
@@ -10,6 +10,9 @@ export interface MemoryPayload {
   sourceId?: string;
   chunkIndex?: number;
   totalChunks?: number;
+  sourceFile?: string;
+  sourceType?: string;
+  fileHash?: string;
 }
 
 export interface MemoryResult {
@@ -89,7 +92,7 @@ export class SessionMemory {
   ): Promise<void> {
     await this.ensureCollection();
 
-    const chunks = chunkText(text, chunkOptions ?? this.chunkDefaults);
+    const chunks = await chunkTextAsync(text, chunkOptions ?? this.chunkDefaults);
     const now = Date.now();
     const sourceId = chunks.length > 1 ? crypto.randomUUID() : undefined;
     const texts = chunks.map((c) => c.text);
@@ -130,7 +133,7 @@ export class SessionMemory {
 
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]!;
-      const chunks = chunkText(entry.text, chunkOptions ?? this.chunkDefaults);
+      const chunks = await chunkTextAsync(entry.text, chunkOptions ?? this.chunkDefaults);
 
       if (chunks.length === 1) {
         allPoints.push({ text: chunks[0]!.text, role: entry.role, timestamp: now + i });
@@ -297,5 +300,95 @@ export class SessionMemory {
         must: [{ key: "sessionId", match: { value: sessionId } }],
       },
     });
+  }
+
+  async listDocuments(sessionId: string): Promise<{ sourceFile: string; sourceType: string; chunks: number; timestamp: number }[]> {
+    await this.ensureCollection();
+    const { points } = await this.client.scroll(this.collectionName, {
+      filter: {
+        must: [
+          { key: "sessionId", match: { value: sessionId } },
+          { key: "role", match: { value: "document" } },
+        ],
+      },
+      limit: 1000,
+      with_payload: true,
+      with_vector: false,
+    });
+
+    const seen = new Map<string, { sourceType: string; chunks: number; timestamp: number }>();
+    for (const pt of points) {
+      const p = pt.payload as unknown as MemoryPayload;
+      const file = p.sourceFile ?? "unknown";
+      const existing = seen.get(file);
+      if (existing) {
+        existing.chunks++;
+      } else {
+        seen.set(file, { sourceType: p.sourceType ?? "?", chunks: 1, timestamp: p.timestamp });
+      }
+    }
+
+    return Array.from(seen, ([sourceFile, v]) => ({ sourceFile, ...v }));
+  }
+
+  async findByFileHash(fileHash: string): Promise<boolean> {
+    await this.ensureCollection();
+    const { points } = await this.client.scroll(this.collectionName, {
+      filter: { must: [{ key: "fileHash", match: { value: fileHash } }] },
+      limit: 1,
+      with_payload: false,
+      with_vector: false,
+    });
+    return points.length > 0;
+  }
+
+  async addDocument(
+    text: string,
+    sessionId: string,
+    meta: { sourceFile: string; sourceType: string; fileHash: string },
+    chunkOptions?: ChunkOptions
+  ): Promise<number> {
+    await this.ensureCollection();
+
+    const formatMap: Record<string, ChunkOptions["format"]> = {
+      md: "markdown",
+      html: "html",
+      htm: "html",
+    };
+    const format = formatMap[meta.sourceType] ?? "text";
+    const opts: ChunkOptions = { ...(chunkOptions ?? this.chunkDefaults), format };
+
+    const chunks = await chunkTextAsync(text, opts);
+    const now = Date.now();
+    const sourceId = chunks.length > 1 ? crypto.randomUUID() : undefined;
+    const texts = chunks.map((c) => c.text);
+    const denseVecs = await this.dense.embedBatch(texts);
+    const sparseVecs = this.sparse ? await this.sparse.embedBatch(texts) : null;
+
+    await this.client.upsert(this.collectionName, {
+      points: chunks.map((chunk, i) => ({
+        id: crypto.randomUUID(),
+        vector: {
+          dense: denseVecs[i]!,
+          ...(sparseVecs && { sparse: sparseVecs[i]! }),
+        },
+        payload: {
+          text: chunk.text,
+          sessionId,
+          role: "document",
+          timestamp: now,
+          sourceFile: meta.sourceFile,
+          sourceType: meta.sourceType,
+          fileHash: meta.fileHash,
+          ...(sourceId && {
+            sourceId,
+            chunkIndex: chunk.index,
+            totalChunks: chunk.totalChunks,
+          }),
+        } satisfies MemoryPayload,
+      })),
+    });
+
+    return chunks.length;
   }
 }

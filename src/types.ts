@@ -1,6 +1,8 @@
 export interface ChunkOptions {
   maxChunkSize?: number;
   overlapSize?: number;
+  format?: "text" | "markdown" | "html" | "latex" | "code";
+  language?: string;
 }
 
 export interface Chunk {

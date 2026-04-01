@@ -1,6 +1,6 @@
 # augai
 
-Session memory system built on [Qdrant](https://qdrant.tech) with pluggable embedding backends. Stores conversation messages as vectors, retrieves by semantic similarity. Supports text chunking, time-weighted scoring, hybrid dense+sparse search, and cross-encoder reranking.
+Session memory system built on [Qdrant](https://qdrant.tech) with pluggable embedding backends. Stores conversation messages as vectors, retrieves by semantic similarity. Supports text chunking, time-weighted scoring, hybrid dense+sparse search, cross-encoder reranking, and document ingestion (PDF, HTML, Markdown, plain text) with SHA-256 deduplication.
 
 ## Backends
 
@@ -31,7 +31,7 @@ bun run infra:up
 # 3. Run interactive CLI
 bun run cli
 
-# CLI commands: /search <query>, /history, /clear, /quit
+# CLI commands: /search <query>, /history, /clear, /ingest <path>, /docs, /quit
 ```
 
 ## Commands
@@ -80,6 +80,39 @@ The sidecar uses:
 - **SPLADE-PP-v1** for sparse embeddings
 - **BGERerankerV2M3** for cross-encoder reranking
 
+## Document Ingestion
+
+Ingest PDF, HTML, Markdown, and plain text files directly into session memory via the CLI. Documents are chunked with format-aware splitting, embedded, and stored in Qdrant. SHA-256 hashing prevents duplicate ingestion.
+
+```bash
+# Ingest a single file
+you> /ingest ./docs/paper.pdf
+[done] paper.pdf — 42 chunks (1230ms)
+
+# Ingest multiple files with glob
+you> /ingest ./docs/*.md
+[done] README.md — 3 chunks (450ms)
+[skip] notes.md (already ingested)
+
+# List ingested documents
+you> /docs
+  [17:30:00] paper.pdf (pdf) — 42 chunks
+  [17:30:01] README.md (md) — 3 chunks
+
+# Search across ingested documents
+you> /search database connection
+  [score=0.8234 ...] (document) ...
+```
+
+**Supported formats:** `.pdf`, `.html`, `.htm`, `.md`, `.txt`
+
+PDF support requires the optional `unpdf` dependency:
+```bash
+bun add unpdf
+```
+
+**Persistence:** Qdrant's `qdrant_data` Docker volume persists all ingested documents across container restarts. No additional configuration needed.
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -126,9 +159,12 @@ consumers: CLI, demo, compare scripts
 | `src/reranker-cohere.ts` | `CohereReranker` |
 | `src/reranker-voyage.ts` | `VoyageReranker` |
 | `src/reranker-local.ts` | `LocalReranker` — BM25, fully offline |
-| `src/memory.ts` | `SessionMemory` — add, search, hybrid RRF, reranking, time-weight |
+| `src/memory.ts` | `SessionMemory` — add, addDocument, search, hybrid RRF, reranking, time-weight, dedup |
+| `src/ingest.ts` | Document ingestion — PDF/HTML/MD/TXT reading, SHA-256 dedup, format detection |
 | `src/chunker.ts` | `chunkText()` — sentence-boundary splitting with overlap |
-| `src/cli.ts` | Interactive CLI |
+| `src/chunk-text.ts` | Recursive sentence-aware text splitter with abbreviation handling |
+| `src/chunk-structured.ts` | LangChain-backed splitter for structured formats (markdown, HTML, LaTeX, code) |
+| `src/cli.ts` | Interactive CLI with `/search`, `/ingest`, `/docs`, `/history`, `/clear` |
 | `src/index.ts` | Demo script |
 | `src/compare-models.ts` | In-memory model comparison |
 | `src/compare-hybrid.ts` | Hybrid vs dense search benchmark |

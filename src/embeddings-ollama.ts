@@ -2,7 +2,8 @@ import type { DenseEmbedder } from "./types.js";
 
 export type OllamaModel =
   | "nomic-embed-text" | "mxbai-embed-large" | "all-minilm"
-  | "snowflake-arctic-embed" | "bge-m3" | "nub235/voyage-4-nano";
+  | "snowflake-arctic-embed" | "bge-m3" | "nub235/voyage-4-nano"
+  | "qwen3-embedding" | "qwen3-embedding:0.6b" | "qwen3-embedding:4b" | "qwen3-embedding:8b";
 
 const MODELS: Record<OllamaModel, { dimension: number; maxTokens: number }> = {
   "nomic-embed-text": { dimension: 768, maxTokens: 8192 },
@@ -11,6 +12,10 @@ const MODELS: Record<OllamaModel, { dimension: number; maxTokens: number }> = {
   "snowflake-arctic-embed": { dimension: 1024, maxTokens: 512 },
   "bge-m3": { dimension: 1024, maxTokens: 8192 },
   "nub235/voyage-4-nano": { dimension: 1024, maxTokens: 4096 }, // GGUF port — 1024d (official is 2048d, projection layer lost in conversion)
+  "qwen3-embedding": { dimension: 4096, maxTokens: 32000 },
+  "qwen3-embedding:0.6b": { dimension: 1024, maxTokens: 32000 },
+  "qwen3-embedding:4b": { dimension: 2560, maxTokens: 32000 },
+  "qwen3-embedding:8b": { dimension: 4096, maxTokens: 32000 },
 };
 
 interface OllamaOptions {

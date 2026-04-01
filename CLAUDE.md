@@ -19,7 +19,7 @@ bun run infra:up     # docker-compose: Qdrant + Ollama + Infinity + sidecar
 
 - **Runtime:** Bun
 - **ESM + TypeScript:** `module: "preserve"`, `moduleResolution: "bundler"`, strict mode
-- **Deps:** `@qdrant/js-client-rest`, `openai`, `cohere-ai`, `voyageai`; `fastembed` is `optionalDependencies`
+- **Deps:** `@qdrant/js-client-rest`, `openai`, `cohere-ai`, `voyageai`; `fastembed`, `unpdf` in `optionalDependencies`
 - **No linter, no formatter, no tests**
 
 ## Architecture
@@ -39,9 +39,12 @@ Backend selected via `AUGAI_EMBEDDER` env var (default: `"ollama"`). Reranker vi
 | `src/sidecar-client.ts` | `SidecarDenseEmbedder` / `SidecarSparseEmbedder` / `SidecarReranker` — HTTP to Rust sidecar on :8081 |
 | `src/rerank-infinity.ts` | `InfinityReranker` |
 | `src/reranker-{cohere,voyage,local}.ts` | Cloud + BM25 rerankers |
-| `src/memory.ts` | `SessionMemory` — `add()`, `addBatch()`, `search()`, `listSession()`, `clearSession()`. Named-vector collections. Hybrid RRF search when sparse embedder present. Sigmoid rerank blending. Time-weighted scoring. |
-| `src/chunker.ts` | `chunkText()` — sentence-boundary splitting with overlap |
-| `src/cli.ts` | Readline CLI, sidecar auto-detect |
+| `src/memory.ts` | `SessionMemory` — `add()`, `addBatch()`, `addDocument()`, `search()`, `listSession()`, `listDocuments()`, `findByFileHash()`, `clearSession()`. Named-vector collections. Hybrid RRF search when sparse embedder present. Sigmoid rerank blending. Time-weighted scoring. |
+| `src/ingest.ts` | `ingestFile()` + `resolveIngestPaths()` — file reading, PDF extraction (unpdf), SHA-256 dedup, format detection |
+| `src/chunker.ts` | `chunkText()` sync + `chunkTextAsync()` for structured formats (markdown, HTML, LaTeX, code) |
+| `src/chunk-text.ts` | Recursive sentence-aware text splitter with abbreviation handling and overlap |
+| `src/chunk-structured.ts` | LangChain-backed splitter for structured formats (async, lazy-loaded) |
+| `src/cli.ts` | Readline CLI, sidecar auto-detect. Commands: `/search`, `/history`, `/clear`, `/ingest`, `/docs`, `/quit` |
 | `src/index.ts` | Demo script, sidecar auto-detect |
 | `augai-embed/` | Rust HTTP sidecar — axum + fastembed-rs, exposes dense/sparse/rerank on :8081 |
 
@@ -57,7 +60,7 @@ Backend selected via `AUGAI_EMBEDDER` env var (default: `"ollama"`). Reranker vi
 - `Float32Array` → `Array.from()` for Qdrant compatibility
 - Point IDs: `crypto.randomUUID()`
 - Payload type safety: `satisfies MemoryPayload` at upsert sites
-- `MemoryPayload`: `{ text, sessionId, role, timestamp, sourceId?, chunkIndex?, totalChunks? }`
+- `MemoryPayload`: `{ text, sessionId, role, timestamp, sourceId?, chunkIndex?, totalChunks?, sourceFile?, sourceType?, fileHash? }`
 - All embedder implementations satisfy `DenseEmbedder` from `./types.js`
 - Rerank scores sigmoid-normalized before blending: `1 / (1 + Math.exp(-relevanceScore))`
 - Over-fetch: `min(limit × 10, 1000)` for reranking; `min(limit × 3, 1000)` for time-weight only

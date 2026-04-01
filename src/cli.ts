@@ -1,5 +1,6 @@
 import * as readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
+import { basename } from "node:path";
 import { QdrantClient } from "@qdrant/js-client-rest";
 import type { SparseEmbedder } from "./types.js";
 import { createEmbedder } from "./provider.js";
@@ -41,7 +42,7 @@ async function main() {
 
   console.log("augai — Session Memory CLI");
   console.log(`Session: ${SESSION_ID}`);
-  console.log("Commands: /search <query>, /history, /clear, /quit");
+  console.log("Commands: /search <query>, /history, /clear, /ingest <path>, /docs, /quit");
   console.log("Anything else is stored as a user message.\n");
 
   let messageCount = 0;
@@ -109,9 +110,52 @@ async function main() {
       continue;
     }
 
+    if (trimmed.startsWith("/ingest ")) {
+      const pathInput = trimmed.slice(8).trim();
+      if (!pathInput) {
+        console.log("Usage: /ingest <path-or-glob>\n");
+        continue;
+      }
+      const { resolveIngestPaths, ingestFile } = await import("./ingest.js");
+      const paths = await resolveIngestPaths(pathInput);
+      if (paths.length === 0) {
+        console.log("No supported files found (supported: .pdf .html .htm .md .txt)\n");
+        continue;
+      }
+      for (const p of paths) {
+        try {
+          const result = await ingestFile(p, memory, SESSION_ID);
+          if (result.skipped) {
+            console.log(`[skip] ${result.filename} (already ingested)`);
+          } else {
+            console.log(`[done] ${result.filename} — ${result.chunks} chunks (${result.timeMs}ms)`);
+          }
+        } catch (err) {
+          console.log(`[fail] ${basename(p)} — ${err instanceof Error ? err.message : err}`);
+        }
+      }
+      console.log();
+      continue;
+    }
+
+    if (trimmed === "/docs") {
+      const docs = await memory.listDocuments(SESSION_ID);
+      if (docs.length === 0) {
+        console.log("No documents ingested in this session.\n");
+        continue;
+      }
+      console.log(`\n--- Ingested Documents (${docs.length}) ---`);
+      for (const doc of docs) {
+        const time = new Date(doc.timestamp).toLocaleTimeString();
+        console.log(`  [${time}] ${doc.sourceFile} (${doc.sourceType}) — ${doc.chunks} chunks`);
+      }
+      console.log();
+      continue;
+    }
+
     if (trimmed.startsWith("/")) {
       console.log(`Unknown command: ${trimmed.split(" ")[0]}`);
-      console.log("Commands: /search <query>, /history, /clear, /quit\n");
+      console.log("Commands: /search <query>, /history, /clear, /ingest <path>, /docs, /quit\n");
       continue;
     }
 
