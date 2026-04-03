@@ -31,11 +31,12 @@ Backend selected via `AUGAI_EMBEDDER` env var (default: `"ollama"`). Reranker vi
 | File | Role |
 |------|------|
 | `src/types.ts` | Universal interfaces: `DenseEmbedder`, `SparseEmbedder`, `SparseVector`, `Reranker`, `RerankResult` |
-| `src/provider.ts` | `createEmbedder()` factory — `local\|ollama\|openai\|cohere\|voyage\|rust` |
+| `src/provider.ts` | `createEmbedder()` factory — `local\|ollama\|openai\|cohere\|voyage\|mistral\|rust` |
 | `src/reranker-provider.ts` | `createReranker()` factory — `infinity\|cohere\|voyage\|local\|rust` |
 | `src/embeddings.ts` | `FastEmbedEmbedder` — fastembed wrapper (optional dep) |
 | `src/embeddings-ollama.ts` | `OllamaEmbedder` — HTTP, auto-dim probe, batch=128 |
 | `src/embeddings-{openai,cohere,voyage}.ts` | Cloud embedders |
+| `src/embeddings-mistral.ts` | `MistralEmbedder` — Mistral API (`codestral-embed`, `mistral-embed`), built-in 1 req/s throttle for free tier |
 | `src/sidecar-client.ts` | `SidecarDenseEmbedder` / `SidecarSparseEmbedder` / `SidecarReranker` — HTTP to Rust sidecar on :8081 |
 | `src/rerank-infinity.ts` | `InfinityReranker` |
 | `src/reranker-{cohere,voyage,local}.ts` | Cloud + BM25 rerankers |

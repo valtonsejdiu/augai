@@ -1,6 +1,6 @@
 import type { DenseEmbedder } from "./types.js";
 
-export type ProviderName = "local" | "openai" | "cohere" | "voyage" | "ollama" | "rust";
+export type ProviderName = "local" | "openai" | "cohere" | "voyage" | "ollama" | "rust" | "mistral";
 
 export async function createEmbedder(provider?: ProviderName): Promise<DenseEmbedder> {
   const name = provider ?? (process.env.AUGAI_EMBEDDER as ProviderName | undefined) ?? "ollama";
@@ -37,11 +37,19 @@ export async function createEmbedder(provider?: ProviderName): Promise<DenseEmbe
         baseUrl: process.env.OLLAMA_HOST,
       });
     }
+    case "mistral": {
+      const { MistralEmbedder, MODELS: MISTRAL_MODELS } = await import("./embeddings-mistral.js");
+      const model = (process.env.MISTRAL_MODEL ?? "codestral-embed") as keyof typeof MISTRAL_MODELS;
+      if (!(model in MISTRAL_MODELS)) throw new Error(`Invalid Mistral model "${model}". Valid: ${Object.keys(MISTRAL_MODELS).join(", ")}`);
+      const dim = process.env.MISTRAL_DIMENSIONS ? Number(process.env.MISTRAL_DIMENSIONS) : undefined;
+      const rps = process.env.MISTRAL_RPS ? Number(process.env.MISTRAL_RPS) : 1;
+      return new MistralEmbedder(model, dim, rps);
+    }
     case "rust": {
       const { SidecarDenseEmbedder } = await import("./sidecar-client.js");
       return new SidecarDenseEmbedder();
     }
     default:
-      throw new Error(`Unknown embedding provider: "${name}". Use: local, openai, cohere, voyage, ollama, rust`);
+      throw new Error(`Unknown embedding provider: "${name}". Use: local, openai, cohere, voyage, ollama, rust, mistral`);
   }
 }
