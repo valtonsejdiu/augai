@@ -15,6 +15,8 @@
     "cli:ollama:mxbai": "AUGAI_EMBEDDER=ollama OLLAMA_MODEL=mxbai-embed-large bun src/cli.ts",
     "cli:ollama:minilm": "AUGAI_EMBEDDER=ollama OLLAMA_MODEL=all-minilm bun src/cli.ts",
     "cli:ollama:voyage": "AUGAI_EMBEDDER=ollama OLLAMA_MODEL=nub235/voyage-4-nano bun src/cli.ts",
+    "cli:mistral": "AUGAI_EMBEDDER=mistral bun src/cli.ts",
+    "cli:mistral:embed": "AUGAI_EMBEDDER=mistral MISTRAL_MODEL=mistral-embed bun src/cli.ts",
     "cli:rerank": "AUGAI_RERANKER=infinity bun src/cli.ts",
     "infra:up": "docker compose up -d qdrant ollama infinity && docker compose run --rm ollama-pull",
     "infra:down": "docker compose down",
