@@ -10,11 +10,16 @@ import { DISPATCH } from "./tools.js";
 
 const SESSION_ID = crypto.randomUUID();
 
-// Boot sequence: embedder → skill index → memory → stdio loop
-const embedder = await getDenseEmbedder();
-const skillIndex = new SkillIndex(getClient(), embedder);
-await skillIndex.build();
-await getMemory(); // warms the session_memory collection
+let skillIndex: SkillIndex;
+try {
+  const embedder = await getDenseEmbedder();
+  skillIndex = new SkillIndex(getClient(), embedder);
+  await skillIndex.build();
+  await getMemory();
+} catch (err) {
+  process.stderr.write(`[augai-slim] boot failed: ${err}\n`);
+  process.exit(1);
+}
 
 const server = new Server(
   { name: "augai-slim", version: "1.0.0" },
@@ -106,7 +111,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       const memory = await getMemory();
-      const result = await handler({ session_id: SESSION_ID, ...(params as object) }, memory);
+      const result = await handler({ ...(params as object), session_id: SESSION_ID }, memory);
       return {
         content: [{ type: "text" as const, text: JSON.stringify(result) }],
       };

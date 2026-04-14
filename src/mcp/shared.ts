@@ -5,8 +5,8 @@ import { SessionMemory } from "../memory.js";
 import type { DenseEmbedder } from "../types.js";
 
 let _client: QdrantClient | null = null;
-let _embedder: DenseEmbedder | null = null;
-let _memory: SessionMemory | null = null;
+let _embedderPromise: Promise<DenseEmbedder> | null = null;
+let _memoryPromise: Promise<SessionMemory> | null = null;
 
 export function getClient(): QdrantClient {
   if (!_client) {
@@ -15,20 +15,20 @@ export function getClient(): QdrantClient {
   return _client;
 }
 
-export async function getDenseEmbedder(): Promise<DenseEmbedder> {
-  if (!_embedder) _embedder = await createEmbedder();
-  return _embedder;
+export function getDenseEmbedder(): Promise<DenseEmbedder> {
+  if (!_embedderPromise) _embedderPromise = createEmbedder();
+  return _embedderPromise;
 }
 
-export async function getMemory(): Promise<SessionMemory> {
-  if (_memory) return _memory;
-
+async function _initMemory(): Promise<SessionMemory> {
   const dense = await getDenseEmbedder();
 
   let sparse = null;
   let reranker = null;
   try {
-    sparse = new (await import("../sidecar-client.js")).SidecarSparseEmbedder();
+    const candidate = new (await import("../sidecar-client.js")).SidecarSparseEmbedder();
+    await candidate.embedBatch(["probe"]);
+    sparse = candidate;
   } catch (e) {
     process.stderr.write(`[augai] sparse embedder unavailable: ${e}\n`);
   }
@@ -38,6 +38,10 @@ export async function getMemory(): Promise<SessionMemory> {
     process.stderr.write(`[augai] reranker unavailable: ${e}\n`);
   }
 
-  _memory = new SessionMemory(getClient(), dense, undefined, sparse, reranker);
-  return _memory;
+  return new SessionMemory(getClient(), dense, undefined, sparse, reranker);
+}
+
+export function getMemory(): Promise<SessionMemory> {
+  if (!_memoryPromise) _memoryPromise = _initMemory();
+  return _memoryPromise;
 }

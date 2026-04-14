@@ -44,7 +44,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     const memory = await getMemory();
-    const result = await handler(args as Record<string, unknown>, memory);
+    const result = await handler({ ...(args as object), session_id: SESSION_ID }, memory);
     return {
       content: [{ type: "text" as const, text: JSON.stringify(result) }],
     };

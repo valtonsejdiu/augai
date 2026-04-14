@@ -1,3 +1,4 @@
+import { resolve, sep } from "path";
 import { ingestFile } from "../ingest.js";
 import type { SessionMemory } from "../memory.js";
 
@@ -37,9 +38,13 @@ export const DISPATCH: Record<
   memory_ingest: async (p, m) => {
     if (typeof p.path !== "string" || !p.path)
       throw new Error("memory_ingest: path is required and must be a non-empty string");
+    const resolved = resolve(p.path);
+    const root = process.env.AUGAI_INGEST_ROOT ? resolve(process.env.AUGAI_INGEST_ROOT) : process.cwd();
+    if (!resolved.startsWith(root + sep) && resolved !== root)
+      throw new Error(`memory_ingest: path must be within ${root}`);
     if (typeof p.session_id !== "string" || !p.session_id)
       throw new Error("memory_ingest: session_id is required");
-    const result = await ingestFile(p.path, m, p.session_id);
+    const result = await ingestFile(resolved, m, p.session_id);
     return {
       filename: result.filename,
       chunks: result.chunks,
