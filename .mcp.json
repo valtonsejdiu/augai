@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "augai-slim": {
+      "command": "bun",
+      "args": ["run", "src/mcp/slim.ts"]
+    },
+    "augai-full": {
+      "command": "bun",
+      "args": ["run", "src/mcp/full.ts"]
+    }
+  }
+}
