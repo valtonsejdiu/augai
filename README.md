@@ -182,6 +182,50 @@ consumers: CLI, demo, compare scripts
 | `infinity` | 7997 | Cross-encoder reranker (`mxbai-rerank-xsmall-v1`) |
 | `augai-embed` | 8081 | Rust sidecar (dense + sparse + rerank) |
 
+## MCP Server
+
+augai exposes its memory system as an [MCP](https://modelcontextprotocol.io) server in two variants:
+
+| Variant | Command | Description |
+|---------|---------|-------------|
+| **full** | `bun run mcp:full` | Exposes all 6 tools directly — the host model calls them by name |
+| **slim** | `bun run mcp:slim` | Two meta-tools (`get_skill` + `execute_skill`) backed by a semantic skill index in Qdrant |
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `memory_search` | Hybrid vector search across past conversations and ingested documents |
+| `memory_add` | Store a message or fact into session memory |
+| `memory_ingest` | Ingest a local file (PDF, MD, HTML, TXT) into session memory |
+| `memory_list_documents` | List ingested documents for a session |
+| `memory_list_session` | Browse recent messages in chronological order |
+| `memory_clear_session` | Delete all memory for a session (irreversible) |
+
+### Usage with Claude Code
+
+Add to your project's `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "augai": {
+      "command": "bun",
+      "args": ["run", "mcp:slim"],
+      "cwd": "/path/to/augai"
+    }
+  }
+}
+```
+
+### MCP Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUGAI_INGEST_ROOT` | `process.cwd()` | Root directory for `memory_ingest` path validation |
+
+Session identity is enforced server-side — each MCP connection gets a unique `session_id` that cannot be overridden by the model.
+
 ## Qdrant Schema
 
 Collections use **named vectors**: `{ dense: { size, distance: "Cosine" } }` + optional `sparse_vectors`. Old flat-vector `session_memory` collections from pre-merge are incompatible — drop the collection or set `AUGAI_COLLECTION=session_memory_v2` when upgrading.

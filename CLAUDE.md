@@ -9,6 +9,8 @@ augai — session memory system on Qdrant with pluggable embeddings (local faste
 ```bash
 bun start            # Demo (src/index.ts) — needs Qdrant on localhost:6333
 bun run cli          # Interactive CLI
+bun run mcp:slim     # MCP server — slim variant (get_skill + execute_skill)
+bun run mcp:full     # MCP server — full variant (all 6 tools exposed directly)
 bun run compare      # Compare embedding models in-memory (no Qdrant)
 bun run compare:hybrid  # Hybrid vs dense benchmark (needs Qdrant + sidecar)
 bun run typecheck    # tsc --noEmit
@@ -47,6 +49,11 @@ Backend selected via `AUGAI_EMBEDDER` env var (default: `"ollama"`). Reranker vi
 | `src/chunk-structured.ts` | LangChain-backed splitter for structured formats (async, lazy-loaded) |
 | `src/cli.ts` | Readline CLI, sidecar auto-detect. Commands: `/search`, `/history`, `/clear`, `/ingest`, `/docs`, `/quit` |
 | `src/index.ts` | Demo script, sidecar auto-detect |
+| `src/mcp/shared.ts` | MCP shared singletons — `getClient()`, `getDenseEmbedder()`, `getMemory()` (promise-singleton pattern) |
+| `src/mcp/tools.ts` | `DISPATCH` — tool handler map with path traversal protection on `memory_ingest` |
+| `src/mcp/skill-index.ts` | `SkillIndex` — semantic skill routing via Qdrant vector search, `SKILLS` definitions |
+| `src/mcp/full.ts` | MCP full server — exposes all 6 tools directly, server-enforced session identity |
+| `src/mcp/slim.ts` | MCP slim server — `get_skill` + `execute_skill` meta-tools, boot diagnostics |
 | `augai-embed/` | Rust HTTP sidecar — axum + fastembed-rs, exposes dense/sparse/rerank on :8081 |
 
 ## Code Rules
