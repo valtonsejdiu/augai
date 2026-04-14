@@ -11,6 +11,7 @@ Session memory system built on [Qdrant](https://qdrant.tech) with pluggable embe
 | `openai` | OpenAI Embeddings API | no | optional |
 | `cohere` | Cohere Embed API (asymmetric) | no | optional |
 | `voyage` | Voyage AI (VoyageStrategy: 3-model index/query/fallback) | no | optional |
+| `mistral` | Mistral API (`codestral-embed`, `mistral-embed`) — 1 req/s throttle for free tier | no | optional |
 | `rust` | Rust sidecar (`augai-embed`) — NomicEmbedTextV15 + SPLADE sparse | yes | yes (BGE) |
 
 ## Prerequisites
@@ -117,7 +118,7 @@ bun add unpdf
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AUGAI_EMBEDDER` | `ollama` | Embedding backend: `local\|ollama\|openai\|cohere\|voyage\|rust` |
+| `AUGAI_EMBEDDER` | `ollama` | Embedding backend: `local\|ollama\|openai\|cohere\|voyage\|mistral\|rust` |
 | `AUGAI_RERANKER` | unset | Reranker: `infinity\|cohere\|voyage\|local\|rust` (disabled if unset) |
 | `AUGAI_COLLECTION` | `session_memory` | Qdrant collection name |
 | `AUGAI_EMBED_URL` | `http://localhost:8081` | Rust sidecar endpoint |
@@ -130,6 +131,7 @@ bun add unpdf
 | `OPENAI_API_KEY` | — | Required for `openai` backend |
 | `CO_API_KEY` | — | Required for `cohere` backend/reranker |
 | `VOYAGEAI_API_KEY` | — | Required for `voyage` backend/reranker |
+| `MISTRAL_API_KEY` | — | Required for `mistral` backend |
 | `VOYAGE_INDEX_MODEL` | `voyage-4-large` | Voyage model for indexing documents |
 | `VOYAGE_QUERY_MODEL` | `voyage-4-lite` | Voyage model for queries |
 | `VOYAGE_FALLBACK_MODEL` | `voyage-4` | Voyage fallback model on rate-limit |
@@ -154,6 +156,7 @@ consumers: CLI, demo, compare scripts
 | `src/embeddings-openai.ts` | `OpenAIEmbedder` |
 | `src/embeddings-cohere.ts` | `CohereEmbedder` — asymmetric `input_type` |
 | `src/embeddings-voyage.ts` | `VoyageEmbedder` — VoyageStrategy + retry/fallback |
+| `src/embeddings-mistral.ts` | `MistralEmbedder` — `codestral-embed` / `mistral-embed`, 1 req/s throttle |
 | `src/sidecar-client.ts` | `SidecarDenseEmbedder`, `SidecarSparseEmbedder`, `SidecarReranker` |
 | `src/rerank-infinity.ts` | `InfinityReranker` |
 | `src/reranker-cohere.ts` | `CohereReranker` |
